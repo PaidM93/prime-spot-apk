@@ -1,32 +1,52 @@
-name: Build APK
+name: Build Release APK
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+  workflow_dispatch: # allows manual trigger from GitHub Actions tab
 
 jobs:
-  build:
+  build-android:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 18
+          cache: 'npm'
 
-      - run: npm install
+      - name: Install dependencies
+        run: npm install
 
-      - uses: actions/setup-java@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleRelease
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-      - uses: actions/upload-artifact@v4
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/primespot.keystore
+
+      - name: Build release APK
+        run: |
+          cd android
+          ./gradlew assembleRelease
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: apk
-          path: android/app/build/outputs/apk/release/*.apk
+          name: PrimeSpot-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
